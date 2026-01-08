@@ -1,0 +1,83 @@
+from flask import Flask, jsonify, request
+from flask_jwt_extended import (
+    JWTManager, 
+    create_access_token, 
+    get_jwt_identity, 
+    jwt_required,
+    get_jwt_header,
+    get_jwt
+)
+from flasgger import Swagger
+
+app = Flask(__name__)
+
+# CONFIGURATION
+# Note: 'JWT_SECRET_KEY' is the correct key for this extension
+app.config["JWT_SECRET_KEY"] = "SECRET_KEY" 
+jwt = JWTManager(app)
+app.config["JWT_AUTH_HEADER_NAME"] = "Authorization"
+app.config["JWT_AUTH_HEADER_PREFIX"] = "Bearer"
+
+# Initialize Swagger with Security Definitions
+template = {
+    "securityDefinitions": {
+        "Bearer": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header",
+            "description": "Format: Bearer <token>"
+        }
+    }
+}
+
+swagger = Swagger(app, template=template)
+
+# --- ROUTES ---
+
+@app.route("/token")
+def index():
+    """
+    Generate JWT Token
+    ---
+    responses:
+      200:
+        description: Returns a JWT access token
+    """
+    username = "abc@aoo.com"
+    payload = "How are you doing?"
+    token = create_access_token(
+        identity=username, 
+        additional_claims={"user_payload": payload})
+    return jsonify(access_token=token)
+
+@app.route("/hello", methods=["POST"])
+@jwt_required()
+def display_hello():
+    """
+    Decode JWT and say Hello
+    ---
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: Returns user identity and header info
+    """
+    # Decoding the Header (alg, typ)
+    header_data = get_jwt_header()
+    
+    # Decoding the Identity (the username)
+    user_identity = get_jwt_identity()
+
+    full_claims = get_jwt()
+    decoded_payload = full_claims.get("user_payload")
+    
+    return jsonify({
+        "message": f"Hello, {user_identity}",
+        "decoded_header": header_data,
+        "payload_from_body": decoded_payload
+    })
+
+if __name__ == "__main__":
+    app.run(debug=True)
+
+
